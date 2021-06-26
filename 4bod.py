@@ -129,22 +129,24 @@ def flag():
     global acc,IP
     IP += 1
 def jump():
-    global acc,IP
-    IP=flags[mem[IP]]
+    global acc,IP,flags
+    if flags[mem[program[IP+1]]]==None:
+        print("Flag {} Undefined".format(mem[program[IP+1]]))
+        sys.exit(2)
+    IP=flags[mem[program[IP+1]]]+1
 def do_when_equal():
     global skip, acc, IP
     IP+=1
-    if program[mem[IP]] != None:
-        skip=program[mem[IP]] != acc
+    skip=mem[program[IP]] != acc
 
 def do_when_greater():
     global skip, acc, IP
     IP+=1
-    skip=program[mem[IP]]<=acc
+    skip=mem[program[IP]]<=acc
 def do_when_less():
     global skip, acc, IP
     IP+=1
-    skip=program[mem[IP]]>=acc
+    skip=mem[program[IP]]>=acc
 instructions=[nop,ldm,stm,ldi,set_to_arrow_state_pygame,inc,cls,shl,shr,set_VRAM,flip_VRAM,flag,jump,do_when_equal,do_when_greater,do_when_less]
 instruction_sizes=[1,2,2,2,1,1,1,1,1,3,3,2,2,2,2,2]
 def draw_screen_ansi():
@@ -191,8 +193,7 @@ def log_machine_state(logfile):
         if (i<15):
             loginfo+=", "
     loginfo+="]\n"
-
-    loginfo += "IP: {} (next program bytes:{} {} {})\n".format(IP,program[IP],program[IP+1],program[IP+2])
+    loginfo += "IP: {} (next program nybbles:{} {} {})\n".format(IP,program[IP],program[(IP+1)],program[(IP+2)])
     logfile.write(loginfo)
 
 def main(source_filename,logfilename="4bod.log", engine="pygame"):
@@ -249,14 +250,16 @@ def main(source_filename,logfilename="4bod.log", engine="pygame"):
                 found=True
                 break
         the_rest=source_file_raw.read(-1)
-        the_rest=re.sub(r"#.*\n","",the_rest)
+        the_rest=re.sub(r"#[^\n]*","",the_rest)
         the_rest=the_rest.replace("\n","")
         the_rest=the_rest.replace("\r","")
         the_rest=the_rest.replace(" ","")
         the_rest=the_rest.replace("\t","")
         counter=0
+        logfile.write("Program Listing: \n")
         while(the_rest!="" and the_rest!=None):
             program.append(int(the_rest[:4],2))
+            logfile.write(the_rest[:4]+"\n")
             the_rest=the_rest[4:]
             counter+=1
         if (counter!=768):
@@ -275,7 +278,7 @@ def main(source_filename,logfilename="4bod.log", engine="pygame"):
             print("Image must be 12x256")
             sys.exit()
         counter=0
-
+        logfile.write("Program Listing: \n")
         for y in range(256):
             for x in range(0,12,4):
 
@@ -290,6 +293,7 @@ def main(source_filename,logfilename="4bod.log", engine="pygame"):
                     cur_nybble+=8
                 counter+=1
                 program.append(cur_nybble)
+                logfile.write(str(cur_nybble)+"\n")
 
 
 
@@ -299,8 +303,7 @@ def main(source_filename,logfilename="4bod.log", engine="pygame"):
         if program[cur_nybble_ptr]==11:
             flags[program[cur_nybble_ptr+1]]=cur_nybble_ptr
         cur_nybble_ptr+=instruction_sizes[program[cur_nybble_ptr]]
-
-
+    logfile.write(str(flags))
     try:
     #interpreter
         while (not exited):
@@ -310,11 +313,13 @@ def main(source_filename,logfilename="4bod.log", engine="pygame"):
                     log_machine_state(logfile)
                 if (not skip):
                     instructions[program[IP]]()
+                    IP+=1
+
                 else:
                     if (program[IP]!=0):
                         skip=False
+                    IP+=instruction_sizes[program[IP]] 
                 bound()
-                IP+=1
             #sys.exit()
             logfile.write("\nDrawing screen\n")
             if (engine=="pygame"):
